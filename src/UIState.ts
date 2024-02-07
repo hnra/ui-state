@@ -103,9 +103,11 @@ export function mkState(): any {
             if (p === "update") {
                 return update;
             }
-
             if (p === "eagerUpdate") {
                 return eagerUpdate;
+            }
+            if (p === "generation") {
+                return generationSignal.peek();
             }
 
             if (!(p in target)) {
