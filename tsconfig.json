@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "preact",
+        "lib": ["DOM", "ES2022"],
+        "module": "ES2022",
+        "moduleResolution": "Bundler"
+    },
+    "include": ["src/**/*.tsx", "src/**/*.ts"]
+}
