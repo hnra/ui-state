@@ -1,45 +1,65 @@
 import { ComponentChildren, render } from "preact";
 import { mkState } from "./UIState";
+import { DepthLogger, KnownRenderer, ValueRender } from "./Components";
 
-new EventSource('/esbuild').addEventListener('change', () => location.reload())
+new EventSource("/esbuild").addEventListener("change", () => location.reload());
 
 interface State {
     name: string;
+    lastName: string;
+    metadata: {
+        age: number;
+        moreMeta: {
+            length: number;
+        };
+    };
 }
 
 const state = mkState();
-state.eagerUpdate({name: "Henrik", lastName: "Andersson"});
-
-setTimeout(() => {
-    state.eagerUpdate({lastName: "Löseth"})
-}, 2000);
-
-setTimeout(() => {
-    state.eagerUpdate({age: 42})
-}, 1000);
-
-setTimeout(() => {
-    state.update(10, { name: "Potato", lastName: "Kartoffel", age: 100 });
-}, 4000);
+eager({ name: "henrik", lastName: "andersson" }, 1);
+update({ name: "henrik", lastName: "andersson!" }, 2);
+eager({ metadata: { age: 42 } }, 3);
+update({ metadata: { age: 42 } }, 4);
+eager({ metadata: { moreMeta: { length: 175 } } }, 5);
+// update({ metadata: { age: 42 } }, 4);
 
 function App() {
     console.log("\nRender App");
-    return <div>
-        <SubComponent depth={1} value={state.name}>
-            <SubComponent depth={2} value={state.lastName}>
-            <SubComponent depth={3} value={state.age}></SubComponent>
 
-            </SubComponent>
-        </SubComponent>
-    </div>;
-}
-
-function SubComponent({ depth, children, value }: {depth: number; children?: ComponentChildren, value: any}) {
-    console.log(`Render depth=${depth}`);
-    return <div>
-        Value={value.get()}
-        {children}
-    </div>
+    return (
+        <DepthLogger depth={1}>
+            <ValueRender value={state.name} label="name" />
+            <DepthLogger depth={2}>
+                <ValueRender value={state.lastName} label="lastName" />
+                <DepthLogger depth={3}>
+                    <KnownRenderer
+                        value={state.metadata.age}
+                        label="metadata.age"
+                    />
+                    <DepthLogger depth={4}>
+                        <ValueRender
+                            value={state.metadata.moreMeta.length}
+                            label="length"
+                        />
+                    </DepthLogger>
+                </DepthLogger>
+            </DepthLogger>
+        </DepthLogger>
+    );
 }
 
 render(<App />, document.body);
+
+function eager(s: any, m: number) {
+    setTimeout(() => {
+        console.log(`\n--- eager ${m}`);
+        state.eagerUpdate(s);
+    }, m * 1000);
+}
+
+function update(s: any, m: number) {
+    setTimeout(() => {
+        console.log(`\n--- update ${m} ---`);
+        state.update(2, s);
+    }, m * 1000);
+}

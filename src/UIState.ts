@@ -1,73 +1,101 @@
 import { signal } from "@preact/signals";
 
-type Unknown<_ = any> = { _kind: "unknown"; _v: unknown };
-function unknown<T = any>(): Unknown<T> {
-    return {
-        _kind: "unknown", _v: null
-    };
-}
-function isUnknown(x: unknown): x is Unknown {
-    return x != null && (x as Unknown)._kind === "unknown";
-}
-
-type Indeterminate<T = any> = { _kind: "indeterminate", _v: T};
-function indeterminate<T = any>(v: T): Indeterminate<T> {
-    return {
-        _kind: "indeterminate", _v: v
-    };
-}
-function isIndeterminate(x: unknown): x is Indeterminate {
-    return x != null && (x as Indeterminate)._kind === "indeterminate";
-}
-
-type Known<T = any> = {_kind: "known", _v: T};
-function known<T = any>(v: T): Known<T> {
-    return {
-        _kind: "known", _v: v
-    };
-}
-function isKnown(x: unknown): x is Known {
-    return x != null && (x as Known)._kind === "known";
-}
-
-type UIK<T = any> = Unknown<T> | Indeterminate<T> | Known<T>;
-function isUIK(x: unknown): x is UIK {
-    return isUnknown(x) || isIndeterminate(x) || isKnown(x);
-}
-function hasValue(x: UIK): x is Indeterminate | Known {
-    return isIndeterminate(x) || isKnown(x);
-}
-
 function uiValue() {
-    const vSignal = signal<UIK<any>>(unknown());
+    const kindSignal = signal<"unknown" | "indeterminate" | "known">("unknown");
+    const valueSignal = signal<any>(undefined);
 
-    return {
-        update(newValue: UIK<any>) {
-            const oldVal = vSignal.peek();
-            if (oldVal._kind !== newValue._kind || oldVal._v !== newValue._v) {
-                vSignal.value = newValue;
+    const state = {};
+
+    const handler: ProxyHandler<any> = {
+        get(target, p) {
+            if (p === "update") {
+                return update;
             }
-        },
-
-        isIndeterminate() {
-            return isIndeterminate(vSignal.peek());
-        },
-
-        get() {
-            const currVal = vSignal.value;
-            if (isIndeterminate(currVal)) {
-                return `¿${currVal._v}?`;
-            } else if (isKnown(currVal)) {
-                return `${currVal._v}`;
+            if (p === "render") {
+                return render;
+            }
+            if (p === "eager") {
+                return eager;
+            }
+            if (p === "isKnown") {
+                // valueSignal.value; // Subscribe
+                return () => kindSignal.value === "known";
+            }
+            if (p === "isIndeterminate") {
+                // valueSignal.value; // Subscribe
+                return () => kindSignal.value === "indeterminate";
+            }
+            if (p === "isUnknown") {
+                valueSignal.value; // Subscribe
+                return () => kindSignal.peek() === "unknown";
+            }
+            if (p === "get") {
+                return get;
             }
 
-            return "???";
-        }
+            if (!(p in target)) {
+                target[p] = uiValue();
+            }
+
+            return target[p];
+        },
     };
+
+    const proxy = new Proxy(state, handler);
+
+    return proxy;
+
+    function get() {
+        return valueSignal.value;
+    }
+
+    function update(newValue: any) {
+        if (typeof newValue === "object") {
+            for (const k in newValue) {
+                const uiVal = proxy[k];
+                uiVal.update(newValue[k]);
+            }
+        } else {
+            if (kindSignal.value !== "known") {
+                kindSignal.value = "known";
+            }
+
+            if (valueSignal.value !== newValue) {
+                valueSignal.value = newValue;
+            }
+        }
+    }
+
+    function eager(newValue: any) {
+        if (typeof newValue === "object") {
+            for (const k in newValue) {
+                const uiVal = proxy[k];
+                uiVal.eager(newValue[k]);
+            }
+        } else {
+            if (kindSignal.value !== "indeterminate") {
+                kindSignal.value = "indeterminate";
+            }
+
+            if (valueSignal.value !== newValue) {
+                valueSignal.value = newValue;
+            }
+        }
+    }
+
+    function render() {
+        if (kindSignal.value === "indeterminate") {
+            return `¿${valueSignal.value}?`;
+        } else if (kindSignal.value === "known") {
+            return `${valueSignal.value}`;
+        }
+
+        return "???";
+    }
 }
 
 export function mkState(): any {
-    const state = { } as any;
+    const state = {} as any;
     const generationSignal = signal(0);
 
     const handler: ProxyHandler<any> = {
@@ -85,7 +113,7 @@ export function mkState(): any {
             }
 
             return target[p];
-        }
+        },
     };
 
     const proxy = new Proxy(state, handler);
@@ -98,7 +126,7 @@ export function mkState(): any {
             const newVal = eagerState[p];
             const uiVal = proxy[p];
 
-            uiVal.update(indeterminate(newVal));
+            uiVal.eager(newVal);
         }
     }
 
@@ -111,7 +139,7 @@ export function mkState(): any {
             const newVal = newState[p];
             const uiVal = proxy[p];
 
-            uiVal.update(known(newVal));
+            uiVal.update(newVal);
         }
     }
 }
