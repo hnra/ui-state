@@ -5,32 +5,19 @@ function uiValue() {
     const valueSignal = signal<any>(undefined);
 
     const state = {};
+    const api = {
+        update,
+        eager,
+        isKnown,
+        isIndeterminate,
+        isUnknown,
+        get,
+    };
 
     const handler: ProxyHandler<any> = {
         get(target, p) {
-            if (p === "update") {
-                return update;
-            }
-            if (p === "render") {
-                return render;
-            }
-            if (p === "eager") {
-                return eager;
-            }
-            if (p === "isKnown") {
-                // valueSignal.value; // Subscribe
-                return () => kindSignal.value === "known";
-            }
-            if (p === "isIndeterminate") {
-                // valueSignal.value; // Subscribe
-                return () => kindSignal.value === "indeterminate";
-            }
-            if (p === "isUnknown") {
-                valueSignal.value; // Subscribe
-                return () => kindSignal.peek() === "unknown";
-            }
-            if (p === "get") {
-                return get;
+            if (p in api) {
+                return api[p as keyof typeof api];
             }
 
             if (!(p in target)) {
@@ -83,14 +70,17 @@ function uiValue() {
         }
     }
 
-    function render() {
-        if (kindSignal.value === "indeterminate") {
-            return `¿${valueSignal.value}?`;
-        } else if (kindSignal.value === "known") {
-            return `${valueSignal.value}`;
-        }
+    function isKnown() {
+        return kindSignal.value === "known";
+    }
 
-        return "???";
+    function isIndeterminate() {
+        return kindSignal.value === "indeterminate";
+    }
+
+    function isUnknown() {
+        valueSignal.value; // Subscribe
+        return () => kindSignal.peek() === "unknown";
     }
 }
 
